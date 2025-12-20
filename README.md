@@ -1,0 +1,1 @@
+Prodex is an web platform that aggregates tech news, uses AI to summarize and categorize articles, and ranks them in a prioritized feed using core data structures. Built with React, Node.js, and MongoDB, it demonstrates practical DSA concepts (heap, trie, hash map) in a real-world AI-powered trend analysis system.
