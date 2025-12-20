@@ -1,0 +1,24 @@
+/*
+ * Essential CSS for the 'flowing' text gradient effect.
+ * This class moves the gradient background horizontally 
+ * across the text shape repeatedly.
+ */
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-flow {
+  /* Ensure the background is wide enough to move */
+  background-size: 200% auto; 
+  /* Apply the animation: 5 seconds, ease, infinite loop */
+  animation: gradient-flow 3s ease infinite; 
+}

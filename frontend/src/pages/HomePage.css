@@ -1,0 +1,76 @@
+/* HomePage.css */
+
+/* Fade mask for sliding tags */
+.fade-mask-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.fade-mask-container::before,
+.fade-mask-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.fade-mask-container::before {
+  left: 0;
+  background: linear-gradient(to right, rgb(17, 24, 39), transparent);
+}
+
+.fade-mask-container::after {
+  right: 0;
+  background: linear-gradient(to left, rgb(17, 24, 39), transparent);
+}
+
+/* Sliding animation */
+@keyframes slide-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slide-left {
+  animation: slide-left 30s linear infinite;
+}
+
+/* Gradient flow animation */
+@keyframes gradient-flow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient-flow {
+  background-size: 200% auto;
+  animation: gradient-flow 3s ease infinite;
+}
+
+/* Custom scrollbar for modal */
+.modal-box::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-box::-webkit-scrollbar-track {
+  background: rgb(31, 41, 55);
+  border-radius: 4px;
+}
+
+.modal-box::-webkit-scrollbar-thumb {
+  background: rgb(75, 85, 99);
+  border-radius: 4px;
+}
+
+.modal-box::-webkit-scrollbar-thumb:hover {
+  background: rgb(99, 102, 241);
+}
