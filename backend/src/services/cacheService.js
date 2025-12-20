@@ -19,8 +19,6 @@ export function hasArticle(articleId) {
     return articleCache.has(articleId.toString());
 }
 
-// cacheService.js
-
 export function getArticlesByIds(articleIds) {
     console.log('📦 Getting articles for IDs:', articleIds.length);
     

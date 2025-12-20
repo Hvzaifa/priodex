@@ -197,7 +197,7 @@ export default function Example() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {allArticles.map((article, index) => (
+                            {articlesToDisplay.map((article, index) => (
                                 <div key={article._id || index} className="group">
                                     {/* Article Card - Click to open modal */}
                                     <label 

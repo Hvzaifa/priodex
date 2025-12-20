@@ -5,7 +5,7 @@ import time
 from scrapers.devcommunity_scraper import DevToScraper
 from scrapers.engadget_scraper import fetch_engadget_articles
 from scrapers.github_scraper import fetch_github_blog_articles
-from scrapers.hackernews_scraper import get_hacker_news_articles
+from scrapers.ainews_scraper import fetch_ai_news_articles
 from scrapers.medium_scraper import fetch_medium_articles
 from scrapers.techcrunch_scraper import fetch_tech_articles
 from scrapers.venturebeat_scraper import fetch_venturebeat_articles
@@ -19,7 +19,6 @@ from ai_processor import summarize_with_groq
 import os
 
 def run_all_scrapers():
-    """Run all scrapers with error handling"""
     scrapers = [
         lambda: DevToScraper().fetch_articles(),
         fetch_engadget_articles,
@@ -29,6 +28,7 @@ def run_all_scrapers():
         fetch_tech_articles,
         fetch_venturebeat_articles,
         fetch_wired_articles,
+        fetch_ai_news_articles,
         fetch_github_blog_articles
     ]
     
