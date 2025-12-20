@@ -23,7 +23,7 @@ export default function Example() {
         fetchArticles();
     }, [fetchArticles]);
 
-    // 4. ✅ NEW: Determine which articles to display
+    // 4. Determine which articles to display
     const articlesToDisplay = searchActive ? searchResults : allArticles;
     const isLoading = searchActive ? isSearching : loading;
 
@@ -64,7 +64,9 @@ export default function Example() {
                                 <div key={listIndex} className="flex gap-4 sm:gap-6">
                                     {[
                                         "GitHub",
-                                        "HackerNews",
+                                        "Crunchbase",
+                                        "IEEE",
+                                        "AI TechPark",
                                         "Medium",
                                         "Tech Crunch",
                                         "DevTo",
@@ -72,7 +74,7 @@ export default function Example() {
                                         "Venture Beat",
                                         "Indie Hackers",
                                         "Engadget",
-                                        "ML Mastery"
+                                        "News Stack"
                                     ].map((source) => (
                                         <div 
                                             key={`${source}-${listIndex}`} 
