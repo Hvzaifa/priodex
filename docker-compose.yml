@@ -1,0 +1,41 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/tech-radar
+      - PORT=5001
+  
+  python-service:
+    build: ./python-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MONGODB_URI=mongodb://mongodb:27017/tech-radar
+
+  mongodb:
+    image: mongo:8.0
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      retries: 5
+      timeout: 3s
+
+
+volumes:
+  mongodb_data:
