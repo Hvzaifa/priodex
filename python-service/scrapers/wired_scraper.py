@@ -15,6 +15,7 @@ def fetch_wired_articles(count=2):
         
         # Use Wired's main RSS feed
         response = requests.get('https://www.wired.com/feed/rss', headers=headers, timeout=15)
+        response.raise_for_status()
         
         # Parse RSS feed
         root = ET.fromstring(response.content)
@@ -23,6 +24,7 @@ def fetch_wired_articles(count=2):
         # Find channel
         channel = root.find('channel')
         if channel is None:
+            print("Wired scraper error: feed has no channel")
             return []
         
         items_processed = 0
@@ -37,6 +39,10 @@ def fetch_wired_articles(count=2):
             if title_elem is not None and link_elem is not None:
                 title = title_elem.text.strip() if title_elem.text else ""
                 url = link_elem.text.strip() if link_elem.text else ""
+                
+                # Duplicate protection
+                if articles_collection.find_one({"url": url}):
+                    continue
                 
                 # Filter for AI, Ideas, Science topics
                 categories = []
@@ -78,6 +84,7 @@ def fetch_wired_articles(count=2):
         return inserted_ids
         
     except Exception as e:
+        print("Wired scraper error:", e)
         return []
 
 def get_full_article_content(url):
@@ -120,7 +127,8 @@ def get_full_article_content(url):
         
         return "Full content not available"
         
-    except Exception:
+    except Exception as e:
+        print("Page fetch error:", e)
         return "Failed to fetch full content"
 
 def extract_keywords(text):

@@ -12,12 +12,14 @@ def fetch_indiehackers_articles(count=2):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get('https://feed.indiehackers.world/posts.rss', headers=headers, timeout=15)
+        response.raise_for_status()
         
         root = ET.fromstring(response.content)
         inserted_ids = []
         
         channel = root.find('channel')
         if channel is None:
+            print("Indie Hackers scraper error: feed has no channel")
             return []
         
         for item in channel.findall('item')[:count]:
@@ -25,6 +27,10 @@ def fetch_indiehackers_articles(count=2):
             url = get_text(item.find('link'))
             
             if not title or not url:
+                continue
+            
+            # Duplicate protection
+            if articles_collection.find_one({"url": url}):
                 continue
             
             content = get_clean_content(item, url)
@@ -47,6 +53,7 @@ def fetch_indiehackers_articles(count=2):
         return inserted_ids
         
     except Exception as e:
+        print("Indie Hackers scraper error:", e)
         return []
 
 def get_text(elem):
@@ -83,8 +90,8 @@ def get_clean_content(item, url):
             text = content_elem.get_text(separator=' ', strip=True)
             if len(text) > 100:
                 return text
-    except:
-        pass
+    except Exception as e:
+        print("Page fetch error:", e)
     
     return f"Indie Hackers article: {get_text(item.find('title'))}"
 

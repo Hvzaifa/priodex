@@ -3,10 +3,55 @@ load_dotenv()
 import os
 from app import articles_collection
 import requests
+import time
 from datetime import datetime
 from app import summary_collection
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+REQUEST_TIMEOUT_SECONDS = 30
+MAX_ATTEMPTS = 4
+MAX_RETRY_WAIT_SECONDS = 60
+
+
+class GroqRateLimitError(Exception):
+    """Groq's limit won't clear soon, so later articles would fail the same way."""
+
+
+def get_retry_wait(response, attempt):
+    """Prefer Groq's Retry-After header, otherwise back off exponentially."""
+    try:
+        return float(response.headers.get("retry-after"))
+    except (AttributeError, TypeError, ValueError):
+        return 2 ** attempt
+
+
+def post_to_groq(headers, data):
+    """POST to Groq, retrying timeouts, connection errors, 429s and 5xx responses."""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        response = None
+        failure = None
+
+        try:
+            response = requests.post(GROQ_URL, headers=headers, json=data, timeout=REQUEST_TIMEOUT_SECONDS)
+            if response.status_code != 429 and response.status_code < 500:
+                return response
+            failure = f"status {response.status_code}"
+        except (requests.Timeout, requests.ConnectionError) as e:
+            failure = str(e)
+
+        rate_limited = response is not None and response.status_code == 429
+        wait = get_retry_wait(response, attempt)
+
+        if rate_limited and wait > MAX_RETRY_WAIT_SECONDS:
+            raise GroqRateLimitError(f"Groq asked to wait {wait:.0f}s")
+
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(min(wait, MAX_RETRY_WAIT_SECONDS))
+
+    if rate_limited:
+        raise GroqRateLimitError(f"still rate limited after {MAX_ATTEMPTS} attempts")
+    raise Exception(f"Groq request failed after {MAX_ATTEMPTS} attempts: {failure}")
+
 
 def summarize_with_groq(article, api_key):
     """
@@ -37,7 +82,7 @@ def summarize_with_groq(article, api_key):
         "temperature": 0.3
     }
 
-    response = requests.post(GROQ_URL, headers=headers, json=data).json()
+    response = post_to_groq(headers, data).json()
 
     # 4️⃣ Error handling
     if "error" in response:

@@ -15,8 +15,11 @@ from scrapers.crunchbase_scraper import fetch_crunchbase_articles
 from scrapers.newsstack_scraper import fetch_thenewstack_articles
 from scrapers.aitechpark_scraper import fetch_aitechpark_articles
 from app import articles_collection
-from ai_processor import summarize_with_groq
+from ai_processor import summarize_with_groq, GroqRateLimitError
 import os
+
+# Articles use about 800 tokens each and Groq's free tier allows 8,000 per minute
+SUMMARY_DELAY_SECONDS = 8
 
 def run_all_scrapers():
     scrapers = [
@@ -44,7 +47,9 @@ def run_all_scrapers():
 def summarize_all_fetched_articles():
     """Process all unprocessed articles"""
     try:
-        unprocessed = articles_collection.find({"processed": False})
+        # list() because pausing between articles can outlast MongoDB's idle cursor timeout
+        unprocessed = list(articles_collection.find({"processed": False}))
+        summarized = 0
         for article in unprocessed:
             try:
                 summarize_with_groq(article, os.getenv("GROQ_API_KEY"))
@@ -52,9 +57,14 @@ def summarize_all_fetched_articles():
                     {"_id": article["_id"]},
                     {"$set": {"processed": True}}
                 )
+                summarized += 1
+            except GroqRateLimitError as e:
+                print(f"Stopping summarization until the next run: {e}")
+                break
             except Exception as e:
                 print(f"Summarization failed: {e}")
-        print("Summarized all articles.")
+            time.sleep(SUMMARY_DELAY_SECONDS)
+        print(f"Summarized {summarized} of {len(unprocessed)} articles.")
                 
     except Exception as e:
         print(f"Error processing articles: {e}")

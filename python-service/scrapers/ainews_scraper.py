@@ -54,6 +54,10 @@ def fetch_ai_news_articles(count=2):
 
         return inserted_ids
 
+    except ET.ParseError:
+        print("AI News scraper error: feed returned", response.headers.get("content-type"), "instead of XML")
+        return []
+
     except Exception as e:
         print("AI News scraper error:", e)
         return []

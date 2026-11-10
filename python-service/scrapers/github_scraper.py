@@ -11,6 +11,8 @@ from app import articles_collection
 def fetch_github_blog_articles(count=2):
     try:
         response = requests.get('https://github.blog/feed/', timeout=10)
+        response.raise_for_status()
+
         root = ET.fromstring(response.content)
         inserted_ids = []
 
@@ -19,6 +21,10 @@ def fetch_github_blog_articles(count=2):
             url = get_text(item.find('link'))
 
             if not title or not url:
+                continue
+
+            # Duplicate protection
+            if articles_collection.find_one({"url": url}):
                 continue
 
             # FIX: New extraction logic

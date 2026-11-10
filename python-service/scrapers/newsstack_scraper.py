@@ -30,6 +30,10 @@ def fetch_thenewstack_articles(count=2):
             if not title or not url:
                 continue
 
+            # Duplicate protection
+            if articles_collection.find_one({"url": url}):
+                continue
+
             content = extract_full_content(item, url)
             categories = extract_categories(item)
 

@@ -85,8 +85,8 @@ def fetch_tech_articles(count=2):
                 category_tags = article_soup.select('a[rel="category tag"]')
                 page_categories = [tag.get_text(strip=True) for tag in category_tags]
                 categories.extend(page_categories)
-            except:
-                pass
+            except Exception as e:
+                print("Page fetch error:", e)
             
             # Use description as fallback
             if not content:
@@ -126,6 +126,7 @@ def fetch_tech_articles(count=2):
         return inserted_ids
 
     except Exception as e:
+        print("TechCrunch scraper error:", e)
         return []
 
 

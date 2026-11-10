@@ -13,6 +13,7 @@ def fetch_venturebeat_articles(count=2):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get('https://venturebeat.com/feed', headers=headers, timeout=15)
+        response.raise_for_status()
         
         root = ET.fromstring(response.content)
         inserted_ids = []
@@ -87,6 +88,7 @@ def fetch_venturebeat_articles(count=2):
         return inserted_ids
         
     except Exception as e:
+        print("VentureBeat scraper error:", e)
         return []
 
 # Run it
