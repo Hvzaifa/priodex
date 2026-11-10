@@ -2,9 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { connectDB } from "./src/config/database.js";
 import articleRoutes from "./src/routes/articles.route.js"
-import { buildSearchIndex } from './src/services/searchService.js';
-import { buildPriorityHeap } from './src/services/heapService.js';
-import { buildArticleCache } from './src/services/cacheService.js'; 
+import { rebuildIndexes } from './src/jobs/heapRebuildJob.js';
+import { startIndexRefreshJob } from './src/jobs/scheduler.js';
 import dotenv from 'dotenv';
 
 
@@ -29,9 +28,7 @@ async function initializeDSAs() {
     try {
         console.log('Initializing data structures...')
 
-        await buildArticleCache();
-        await buildSearchIndex();
-        await buildPriorityHeap();
+        await rebuildIndexes();
 
         console.log('DSAs initializion successful ');
     } catch (error) {
@@ -47,6 +44,8 @@ app.listen(PORT, async() => {
         await connectDB();
 
         await initializeDSAs();
+
+        startIndexRefreshJob();
 
         console.log("Server is running on port:" + PORT);
     } catch (error) {

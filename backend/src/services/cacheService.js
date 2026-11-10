@@ -1,9 +1,6 @@
-import Article from "../models/articles.js";
-
 const articleCache = new Map();
 
-export const buildArticleCache = async () => {
-    const articles = await Article.find({});
+export const buildArticleCache = (articles) => {
     articleCache.clear();
     for (const article of articles) {
         articleCache.set(article._id.toString(), article);

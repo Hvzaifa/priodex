@@ -34,7 +34,8 @@ The project also uses classic data structures in a real application:
 - **Priority feed:** articles are scored by recency and category, and the top 25 are served from a max heap.
 - **Instant search:** debounced, as-you-type prefix search over title words and extracted keywords, backed by a trie.
 - **Article detail view:** a modal shows the full text, categories, keywords, a link to the original and an on-demand summary.
-- **Scheduled refresh:** the Python worker scrapes and summarizes on startup, then every 24 hours.
+- **Scheduled refresh:** the Python worker scrapes and summarizes on startup, then every 24 hours. The backend picks up new articles every 5 minutes.
+- **Resilient summarizing:** Groq calls are paced to fit the free-tier rate limit and retried when rate limited or failing. If the limit won't clear soon, the worker stops and finishes on its next run.
 
 ---
 
@@ -53,7 +54,7 @@ Priodex has three services that share one MongoDB database (`tech-radar`):
                   │  MongoDB  (tech-radar)   │
                   │  articles · summaries    │
                   └────────────┬─────────────┘
-                               │ read all articles at startup
+                               │ reload all articles every 5 min
                                ▼
                   ┌──────────────────────────┐
                   │  backend (Express)       │
@@ -70,10 +71,10 @@ Priodex has three services that share one MongoDB database (`tech-radar`):
 
 1. `scheduler.py` runs every scraper. Each scraper reads its RSS feed and inserts up to 1–2 new articles into `articles` with `processed: false`.
 2. The summarizer picks up every unprocessed article, calls Groq, writes the result to `summaries`, and sets `processed: true`.
-3. When the backend starts, it loads **all** articles once and builds its cache, trie and heap.
+3. When the backend starts, it loads **all** articles and builds its cache, trie and heap. It repeats this every 5 minutes.
 4. The frontend fetches the top 25 articles. It runs searches and fetches summaries on demand.
 
-> **Important:** the backend's indexes are built only at startup. Articles scraped while the backend is running don't appear until the backend restarts.
+> **Good to know:** new articles reach the feed and search at the next index refresh, up to 5 minutes after they're scraped. The refresh also recalculates priority scores, so older articles sink as they age. If a refresh fails, the backend logs the error and keeps serving the data it already has.
 
 ---
 
@@ -175,6 +176,7 @@ GROQ_API_KEY=your-groq-api-key
 Rules for these files:
 
 - **The URI must end in `/tech-radar`.** The Python service always writes to the `tech-radar` database, whatever the URI says. The backend reads from the database named in the URI, and Mongoose falls back to `test` when there isn't one. For Atlas, use `mongodb+srv://user:pass@cluster.example.net/tech-radar?retryWrites=true`.
+- **`INDEX_REFRESH_MINUTES`** (optional, backend) sets how often the backend reloads articles. The default is `5`.
 - **`PORT` must be `5001`.** The frontend has `http://localhost:5001` hard-coded. If `PORT` is missing, Express picks a random port.
 - Both `.env` files are git-ignored. Never commit them.
 
@@ -354,9 +356,7 @@ These findings come from a full review of the codebase. They are grouped by impa
 
 | Issue | Where | Effect | Suggested fix |
 | --- | --- | --- | --- |
-| The backend indexes are built only once, at startup | [backend/index.js](backend/index.js) | New articles stay invisible until a manual restart. Priority scores are frozen at their startup values. | Rebuild periodically (e.g. every 15 min) or use MongoDB change streams. The empty `src/jobs/` files look like they were meant for this. |
-| Four scrapers never check for duplicates | `github`, `newsstack`, `wired`, `indiehackers` scrapers | With the unique `url` index in place, the first already-stored item throws `DuplicateKeyError`, and the scraper aborts and saves nothing. Without the index, duplicates are inserted. | Use `update_one({"url": url}, {"$setOnInsert": doc}, upsert=True)` in every scraper. |
-| Scrapers hide their own failures | All scrapers (`except Exception: return []`, bare `except:`) | A broken feed or selector fails silently. The `Scraper failed` log in `scheduler.py` never fires, because the scrapers catch every error themselves. | Log errors with the source name, or let them propagate to the scheduler. |
+| Three feeds fail on every run | `aitechpark`, `crunchbase`, `ainews` scrapers | AI TechPark and Crunchbase News answer 403 because they block automated requests. AI News returns an HTML page instead of its feed. All three now log a clear error and the other sources carry on, but they add no articles. | Use an official API or feed if the publisher offers one, get permission, or replace the source. Don't work around the blocks. |
 | Different database-name rules | [python-service/app.py](python-service/app.py) vs [backend/src/config/database.js](backend/src/config/database.js) | Python always writes to `tech-radar`, while the backend reads the database named in the URI. A URI without a database name gives an empty feed with no error. | Read the database name from one shared env var in both services. |
 | The server accepts requests before MongoDB connects | [backend/index.js](backend/index.js) | `app.listen` runs first, so early requests get an empty feed. `connectDB` logs failures and carries on, and the process exits only ~10 s later on a Mongoose buffering timeout. | Connect and build the indexes first, call `listen` last, and exit on connection failure. |
 
@@ -393,7 +393,7 @@ These findings come from a full review of the codebase. They are grouped by impa
 
 ### 5. Scalability and code health
 
-- **Three full collection scans at startup.** The cache, trie and heap each run `Article.find({})` and keep full Mongoose documents in memory. Query once with `.lean()` and a projection, then build all three from that result.
+- **Full documents held in memory.** Each index refresh loads every article as a full Mongoose document. Use `.lean()` and a projection to reduce memory use.
 - **`GET /api/articles` costs O(n log n) per request.** It rebuilds a full heap copy on every call. Keep a precomputed sorted top-N list instead, refreshed whenever the indexes rebuild.
 - **Unbounded trie traversal.** A 2-character prefix collects every ID below it, with repeated array concatenation and `Set` building at each level. Cap the number of results while traversing.
 - **Duplicated scraper code.** 12 scrapers × ~150 lines repeat the same `get_text`, `clean_html`, `extract_keywords` and insertion logic. Move this into a shared base module plus one config entry per source (feed URL, selectors, fallback category). `feedparser` would replace the hand-written XML parsing.
@@ -403,8 +403,8 @@ These findings come from a full review of the codebase. They are grouped by impa
 
 ### Suggested roadmap
 
-1. **Make it reliable:** fix the backend scripts, add `requirements.txt`, make all inserts idempotent, surface scraper errors, connect to the database before listening.
-2. **Keep it fresh:** rebuild the indexes on a timer or with change streams. Store `publishedAt` as UTC BSON dates.
+1. **Make it reliable:** fix the backend scripts, add `requirements.txt`, connect to the database before listening.
+2. **Keep it accurate:** store `publishedAt` as UTC BSON dates.
 3. **Rank it well:** normalize categories, use word-boundary keyword matching, rebalance the priority formula, sort search results by score.
 4. **Ship it:** add Docker Compose, env-based API URL and CORS, `helmet`, rate limiting, input validation, and tests with CI.
 5. **Grow it:** pagination, source and category filters, a shared scraper framework.
@@ -420,7 +420,6 @@ The current setup is meant for **local development**, not public deployment.
 - Scraped URLs are rendered as outbound links without checking the scheme. Allow only `http:` and `https:` before storing or rendering them.
 - Scrapers fetch URLs taken from third-party feeds. Add scheme and host validation, redirect limits and egress restrictions to reduce SSRF risk.
 - Article text goes straight into the Groq prompt. Treat it as untrusted (prompt injection), and keep the existing 5,000-character cap.
-- The Groq request has no timeout and doesn't call `raise_for_status()`, so a slow or failing provider can stall the summarizer.
 - Use a least-privilege MongoDB user, keep the database on a private network, and never commit `.env` files or API keys.
 
 ---
@@ -430,10 +429,10 @@ The current setup is meant for **local development**, not public deployment.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Feed is empty | No data yet, or the backend reads a different database | Run `python scheduler.py` first. Make sure both URIs end in `/tech-radar`. Restart the backend. |
-| New articles don't appear | Indexes are built only at startup | Restart the backend (`node index.js`). |
+| New articles don't appear | The next index refresh hasn't run yet | Wait up to 5 minutes, or restart the backend. If that doesn't help, look for `Failed to refresh indexes` in the backend logs. |
 | Frontend shows network errors | Backend not on port 5001 | Set `PORT=5001` in `backend/.env`. |
 | `Cannot find module .../src/index.js` | Broken `npm run dev` / `npm test` script | Run `node index.js` instead. |
 | `buffering timed out after 10000ms` | MongoDB unreachable | Start MongoDB and check `MONGODB_URI`. |
-| "No summary available" for an article | Summarizer hasn't run, or the Groq call failed | Check `GROQ_API_KEY` and the `scheduler.py` output, then rerun it. |
+| "No summary available" for an article | Summarizer hasn't reached it yet, or the Groq call failed | Check `GROQ_API_KEY` and the worker logs. Unsummarized articles are retried on the next run. |
 | `ModuleNotFoundError: pymongo` / `schedule` | venv not active or packages not installed | `source .venv/bin/activate`, then install the packages from step 3. |
-| A scraper inserts nothing | Duplicate URL, feed change, or a silently swallowed error | Run that scraper alone and add logging to its `except` blocks. |
+| A scraper inserts nothing | No new articles, or the feed failed | Look for `<source> scraper error` in the worker logs. No error means its latest articles are already stored. |

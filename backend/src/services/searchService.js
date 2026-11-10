@@ -1,10 +1,8 @@
 import { Trie }  from "../dsa/trie.js";
-import Article from "../models/articles.js";
 
 let globalTrie = null;
 
-export const buildSearchIndex = async () => {  
-    const articles = await Article.find({});
+export const buildSearchIndex = (articles) => {  
     const tempTrie = new Trie();
     
     for (const article of articles) {

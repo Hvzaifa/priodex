@@ -1,11 +1,9 @@
 import { MaxHeap } from "../dsa/maxHeap.js";
-import Article from "../models/articles.js";
 import { calculatePriority } from "../utils/priorityScore.js";
 
 let globalHeap = null;
 
-export const buildPriorityHeap = async () => {
-    const articles = await Article.find({});
+export const buildPriorityHeap = (articles) => {
     const tempHeap = new MaxHeap();
     for (const article of articles) {
         const priorityScore = calculatePriority(article);
